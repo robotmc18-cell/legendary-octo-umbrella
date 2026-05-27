@@ -853,8 +853,8 @@ export function stripShellWrapper(command: string): string {
       ((newCommand.startsWith('"') && newCommand.endsWith('"')) ||
         (newCommand.startsWith("'") && newCommand.endsWith("'")))
     ) {
-      const isWindowsShell = /cmd(?:\.exe)?|powershell|pwsh/i.test(match[0]);
-      if (!isWindowsShell && newCommand.startsWith('"')) {
+      const isPosixShell = match[0].trim().endsWith('-c');
+      if (isPosixShell && newCommand.startsWith('"')) {
         const inner = newCommand.substring(1, newCommand.length - 1);
         let unescaped = '';
         let i = 0;
@@ -862,7 +862,9 @@ export function stripShellWrapper(command: string): string {
           const char = inner[i];
           if (char === '\\' && i + 1 < inner.length) {
             const next = inner[i + 1];
-            if (['$', '`', '"', '\\', '\n'].includes(next)) {
+            if (next === '\n') {
+              i += 2;
+            } else if (['$', '`', '"', '\\'].includes(next)) {
               unescaped += next;
               i += 2;
             } else {
