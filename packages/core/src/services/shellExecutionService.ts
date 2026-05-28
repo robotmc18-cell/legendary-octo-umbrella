@@ -1526,6 +1526,8 @@ export class ShellExecutionService {
           // On Unix, we get an ESRCH or EBADF error.
           // On Windows, we get a message-based error.
           // In both cases, it's safe to ignore.
+          // Return early to prevent a EBADF or ESRCH console crash yielding the gemini-cli useless.
+          return;
         } else {
           throw e;
         }
