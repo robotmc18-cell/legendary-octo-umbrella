@@ -841,4 +841,66 @@ describe('classifyGoogleError', () => {
     );
     expect(result).toBeInstanceOf(TerminalQuotaError);
   });
+
+  it('should return TerminalQuotaError when limit is 0 and message contains actual newlines', () => {
+    const apiError: GoogleApiError = {
+      code: 429,
+      message: 'Quota exceeded for metric: ...\nlimit: 0, model: gemini-3-pro',
+      details: [],
+    };
+    vi.spyOn(errorParser, 'parseGoogleApiError').mockReturnValue(apiError);
+    const result = classifyGoogleError(
+      new Error(
+        'Quota exceeded for metric: ...\nlimit: 0, model: gemini-3-pro',
+      ),
+    );
+    expect(result).toBeInstanceOf(TerminalQuotaError);
+  });
+
+  it('should return TerminalQuotaError when limit is 0 followed by a period', () => {
+    const apiError: GoogleApiError = {
+      code: 429,
+      message: 'Quota exceeded for metric: ...\nlimit: 0. Please retry in 59s.',
+      details: [],
+    };
+    vi.spyOn(errorParser, 'parseGoogleApiError').mockReturnValue(apiError);
+    const result = classifyGoogleError(
+      new Error(
+        'Quota exceeded for metric: ...\nlimit: 0. Please retry in 59s.',
+      ),
+    );
+    expect(result).toBeInstanceOf(TerminalQuotaError);
+  });
+
+  it('should return RetryableQuotaError when limit is fractional (e.g., 0.5)', () => {
+    const apiError: GoogleApiError = {
+      code: 429,
+      message:
+        'Quota exceeded for metric: ...\nlimit: 0.5. Please retry in 59s.',
+      details: [],
+    };
+    vi.spyOn(errorParser, 'parseGoogleApiError').mockReturnValue(apiError);
+    const result = classifyGoogleError(
+      new Error(
+        'Quota exceeded for metric: ...\nlimit: 0.5. Please retry in 59s.',
+      ),
+    );
+    expect(result).toBeInstanceOf(RetryableQuotaError);
+  });
+
+  it('should fall back to "Model not found" for 404 error with plain object', () => {
+    vi.spyOn(errorParser, 'parseGoogleApiError').mockReturnValue(null);
+    const result = classifyGoogleError({ status: 404 });
+    expect(result).toBeInstanceOf(ModelNotFoundError);
+    expect((result as ModelNotFoundError).message).toBe('Model not found');
+  });
+
+  it('should handle Error instances with undefined message gracefully', () => {
+    const malformedError = new Error();
+    delete (malformedError as { message?: string }).message;
+    vi.spyOn(errorParser, 'parseGoogleApiError').mockReturnValue(null);
+
+    const result = classifyGoogleError(malformedError);
+    expect(result).toBe(malformedError); // Should return the original error without crashing
+  });
 });
