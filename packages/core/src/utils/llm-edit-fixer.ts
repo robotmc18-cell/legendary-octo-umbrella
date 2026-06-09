@@ -159,11 +159,24 @@ export async function FixLLMEditWithInstruction(
   if (cachedResult) {
     return cachedResult;
   }
-  const userPrompt = EDIT_USER_PROMPT.replace('{instruction}', instruction)
-    .replace('{old_string}', old_string)
-    .replace('{new_string}', new_string)
-    .replace('{error}', error)
-    .replace('{current_content}', current_content);
+  // Interpolate every placeholder in a single pass with a replacer function.
+  // Using a function (rather than a string) means `$`-sequences in the values
+  // (e.g. `$&`, `$$`, `` $` ``) are inserted literally instead of being treated
+  // as String.prototype.replace substitution patterns, and the single pass
+  // prevents a placeholder token that appears inside one value (e.g. an edit
+  // parameter containing the text `{current_content}`) from being re-interpolated
+  // by a later replacement.
+  const replacements: Record<string, string> = {
+    instruction,
+    old_string,
+    new_string,
+    error,
+    current_content,
+  };
+  const userPrompt = EDIT_USER_PROMPT.replace(
+    /\{(\w+)\}/g,
+    (match, key: string) => replacements[key] ?? match,
+  );
 
   const contents: Content[] = [
     {

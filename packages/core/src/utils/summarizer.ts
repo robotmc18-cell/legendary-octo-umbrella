@@ -84,10 +84,17 @@ export async function summarizeToolOutput(
   if (!textToSummarize || textToSummarize.length < maxOutputTokens) {
     return textToSummarize;
   }
+  // Interpolate placeholders in a single pass with a replacer function so that
+  // `$`-sequences in the tool output (e.g. `$&`, `$$`) are inserted literally
+  // rather than being treated as String.prototype.replace substitution patterns.
+  const replacements: Record<string, string> = {
+    maxOutputTokens: String(maxOutputTokens),
+    textToSummarize,
+  };
   const prompt = SUMMARIZE_TOOL_OUTPUT_PROMPT.replace(
-    '{maxOutputTokens}',
-    String(maxOutputTokens),
-  ).replace('{textToSummarize}', textToSummarize);
+    /\{(\w+)\}/g,
+    (match, key: string) => replacements[key] ?? match,
+  );
 
   const contents: Content[] = [{ role: 'user', parts: [{ text: prompt }] }];
   try {
