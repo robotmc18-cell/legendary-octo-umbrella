@@ -388,6 +388,12 @@ describe('stripShellWrapper', () => {
   it('should not strip anything if no wrapper is present', () => {
     expect(stripShellWrapper('ls -l')).toEqual('ls -l');
   });
+
+  it('should handle multi-line escaped double quotes correctly', () => {
+    const multiLine = 'bash -c "hg commit -m \\"title\n\nbody\\""';
+    const expected = 'hg commit -m "title\n\nbody"';
+    expect(stripShellWrapper(multiLine)).toEqual(expected);
+  });
 });
 
 describe('escapeShellArg', () => {

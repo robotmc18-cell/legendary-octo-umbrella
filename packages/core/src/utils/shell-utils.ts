@@ -62,6 +62,10 @@ export const SHELL_TOOL_NAMES = ['run_shell_command', 'ShellTool'];
  */
 export type ShellType = 'cmd' | 'powershell' | 'bash';
 
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
 /**
  * Defines the configuration required to execute a command string within a specific shell.
  */
@@ -580,15 +584,14 @@ function parsePowerShellCommandDetails(
 
     const details = (parsed.commands ?? [])
       .map((commandDetail): ParsedCommandDetail | null => {
-        if (!commandDetail || typeof commandDetail.name !== 'string') {
+        if (!commandDetail || !isString(commandDetail.name)) {
           return null;
         }
 
         const name = normalizeCommandName(commandDetail.name);
-        const text =
-          typeof commandDetail.text === 'string'
-            ? commandDetail.text.trim()
-            : command;
+        const text = isString(commandDetail.text)
+          ? commandDetail.text.trim()
+          : command;
 
         return {
           name,
@@ -846,10 +849,37 @@ export function stripShellWrapper(command: string): string {
   if (match) {
     let newCommand = command.substring(match[0].length).trim();
     if (
-      (newCommand.startsWith('"') && newCommand.endsWith('"')) ||
-      (newCommand.startsWith("'") && newCommand.endsWith("'"))
+      newCommand.length >= 2 &&
+      ((newCommand.startsWith('"') && newCommand.endsWith('"')) ||
+        (newCommand.startsWith("'") && newCommand.endsWith("'")))
     ) {
-      newCommand = newCommand.substring(1, newCommand.length - 1);
+      const isPosixShell = match[0].trim().endsWith('-c');
+      if (isPosixShell && newCommand.startsWith('"')) {
+        const inner = newCommand.substring(1, newCommand.length - 1);
+        let unescaped = '';
+        let i = 0;
+        while (i < inner.length) {
+          const char = inner[i];
+          if (char === '\\' && i + 1 < inner.length) {
+            const next = inner[i + 1];
+            if (next === '\n') {
+              i += 2;
+            } else if (['$', '`', '"', '\\'].includes(next)) {
+              unescaped += next;
+              i += 2;
+            } else {
+              unescaped += '\\';
+              i++;
+            }
+          } else {
+            unescaped += char;
+            i++;
+          }
+        }
+        newCommand = unescaped;
+      } else {
+        newCommand = newCommand.substring(1, newCommand.length - 1);
+      }
     }
     return newCommand;
   }
@@ -1067,7 +1097,7 @@ export async function* execStreaming(
 export function detectCommandSubstitution(command: string): boolean {
   const shell = getShellConfiguration().shell;
   const isPowerShell =
-    typeof shell === 'string' &&
+    isString(shell) &&
     (shell.toLowerCase().includes('powershell') ||
       shell.toLowerCase().includes('pwsh'));
   if (isPowerShell) {
